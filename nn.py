@@ -40,7 +40,7 @@ words = {}
 
 for dataset in [trainSentences, devSentences, testSentences]:
     for sentence in dataset:
-        for token,label in sentence:
+        for token,char, label in sentence:
             labelSet.add(label)
             words[token.lower()] = True
 
@@ -58,7 +58,7 @@ caseEmbeddings = np.identity(len(case2Idx), dtype='float32')
 word2Idx = {}
 wordEmbeddings = []
 
-fEmbeddings = open("embeddings/glove.6B.100d.txt", encoding="utf-8")
+fEmbeddings = open("embeddings/glove.6B.100d.txt")
 
 for line in fEmbeddings:
     split = line.strip().split(" ")
