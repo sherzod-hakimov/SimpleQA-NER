@@ -109,8 +109,6 @@ model.summary()
 
 
 test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx,char2Idx))
-test_batch,test_batch_len = createBatches(test_set)
-
 
 path = "models/ner_model_epoch_100"
 model.load_weights(path)
@@ -122,7 +120,9 @@ with open('/data/test_raw.txt') as f:
 
     for line in content:
 
-
         json_data = json.loads(line)
         text = json_data['text']
         candidates = json_data['candidates']
+
+
+        testSentences = addCharInformatioin(testSentences)

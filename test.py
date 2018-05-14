@@ -123,6 +123,8 @@ for epoch in range(0, 100):
         if f1_test > maxF1:
             maxF1 = f1_test
             maxEpoch = epoch
+        print("Epoch: " + str(epoch) + " F1: " + str(f1_test))
+
 
 
 
