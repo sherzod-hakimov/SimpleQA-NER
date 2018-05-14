@@ -20,9 +20,9 @@ def compute_f1(predictions, correct, idx2Label):
     
     f1 = 0
     if (rec+prec) > 0:
-        f1 = 2.0 * prec * rec / (prec + rec);
+        f1 = 2.0 * prec * rec / (prec + rec)
         
-    return prec, rec, f1
+    return float(f1)
 
 def compute_precision(guessed_sentences, correct_sentences):
     assert(len(guessed_sentences) == len(correct_sentences))

@@ -7,7 +7,7 @@ from keras.utils import plot_model,Progbar
 from keras.preprocessing.sequence import pad_sequences
 from keras.initializers import RandomUniform
 import os
-
+import json
 
 def tag_dataset(dataset):
     correctLabels = []
@@ -107,12 +107,22 @@ model.compile(loss='sparse_categorical_crossentropy', optimizer='nadam')
 model.summary()
 
 
-model.load_weights("ner_model.hdf5")
 
 test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx,char2Idx))
 test_batch,test_batch_len = createBatches(test_set)
 
-#   Performance on test dataset
-predLabels, correctLabels = tag_dataset(test_batch)
-pre_test, rec_test, f1_test= compute_f1(predLabels, correctLabels, idx2Label)
-print("Test-Data: Prec: %.3f, Rec: %.3f, F1: %.3f" % (pre_test, rec_test, f1_test))
+
+path = "models/ner_model_epoch_100"
+model.load_weights(path)
+
+
+with open('/data/test_raw.txt') as f:
+    content = f.readlines()
+    f = open('data/test_filtered.txt', 'w')
+
+    for line in content:
+
+
+        json_data = json.loads(line)
+        text = json_data['text']
+        candidates = json_data['candidates']
