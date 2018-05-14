@@ -8,7 +8,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.initializers import RandomUniform
 import os
 
-epochs = 1
+epochs = 100
 
 def tag_dataset(dataset):
     correctLabels = []
@@ -23,7 +23,7 @@ def tag_dataset(dataset):
         pred = pred.argmax(axis=-1) #Predict the classes            
         correctLabels.append(labels)
         predLabels.append(pred)
-        b.update(i)
+        # b.update(i)
     return predLabels, correctLabels
 
 
@@ -125,10 +125,10 @@ for epoch in range(epochs):
         model.train_on_batch([tokens, char], labels)
         a.update(i)
         print(' ')
+    # save the model
+    model.save_weights("models/ner_model_epoch_"+str(epoch)+".hdf5", overwrite=True)
 
 
-#save the model
-model.save_weights("ner_model.hdf5", overwrite=True)
 
 #   Performance on dev dataset        
 predLabels, correctLabels = tag_dataset(dev_batch)        

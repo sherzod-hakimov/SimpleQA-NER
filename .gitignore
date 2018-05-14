@@ -52,3 +52,4 @@ embeddings/glove.6B.100d.txt
 __pycache__/
 ner_model.hdf5
 *.pyc
+models/
