@@ -18,7 +18,9 @@ def readfile(filename):
                 sentence = []
             continue
         splits = line.split(' ')
-        sentence.append([splits[0],splits[-1]])
+        word_len = len(splits[0])
+        if(word_len > 0):
+            sentence.append([splits[0],splits[-1]])
 
     if len(sentence) >0:
         sentences.append(sentence)
@@ -32,6 +34,9 @@ def getCasing(word, caseLookup):
     for char in word:
         if char.isdigit():
             numDigits += 1
+
+    if(float(len(word)) == 0):
+         a= ''
             
     digitFraction = numDigits / float(len(word))
     
