@@ -8,7 +8,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.initializers import RandomUniform
 import os
 
-epochs = 100
+epochs = 1
 
 def tag_dataset(dataset):
     correctLabels = []
@@ -19,7 +19,7 @@ def tag_dataset(dataset):
         tokens = np.asarray([tokens])     
         casing = np.asarray([casing])
         char = np.asarray([char])
-        pred = model.predict([tokens, casing,char], verbose=False)[0]   
+        pred = model.predict([tokens, char], verbose=False)[0]
         pred = pred.argmax(axis=-1) #Predict the classes            
         correctLabels.append(labels)
         predLabels.append(pred)
@@ -58,7 +58,7 @@ caseEmbeddings = np.identity(len(case2Idx), dtype='float32')
 word2Idx = {}
 wordEmbeddings = []
 
-fEmbeddings = open("embeddings/glove.6B.100d.txt")
+fEmbeddings = open("embeddings/glove.6B.100d.txt", encoding="utf-8")
 
 for line in fEmbeddings:
     split = line.strip().split(" ")

@@ -9,9 +9,25 @@ from keras.initializers import RandomUniform
 import os
 
 
-trainSentences = readfile("dataSimpleQA/train.txt")
-devSentences = readfile("dataSimpleQA/valid.txt")
-testSentences = readfile("dataSimpleQA/test.txt")
+def tag_dataset(dataset):
+    correctLabels = []
+    predLabels = []
+    b = Progbar(len(dataset))
+    for i,data in enumerate(dataset):
+        tokens, casing,char, labels = data
+        tokens = np.asarray([tokens])
+        casing = np.asarray([casing])
+        char = np.asarray([char])
+        pred = model.predict([tokens, char], verbose=False)[0]
+        pred = pred.argmax(axis=-1) #Predict the classes
+        correctLabels.append(labels)
+        predLabels.append(pred)
+        b.update(i)
+    return predLabels, correctLabels
+
+trainSentences = readfile("data/train.txt")
+devSentences = readfile("data/valid.txt")
+testSentences = readfile("data/test.txt")
 
 trainSentences = addCharInformatioin(trainSentences)
 devSentences = addCharInformatioin(devSentences)
@@ -22,7 +38,7 @@ words = {}
 
 for dataset in [trainSentences, devSentences, testSentences]:
     for sentence in dataset:
-        for token,label in sentence:
+        for token, char, label in sentence:
             labelSet.add(label)
             words[token.lower()] = True
 
@@ -92,3 +108,11 @@ model.summary()
 
 
 model.load_weights("ner_model.hdf5")
+
+test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx,char2Idx))
+test_batch,test_batch_len = createBatches(test_set)
+
+#   Performance on test dataset
+predLabels, correctLabels = tag_dataset(test_batch)
+pre_test, rec_test, f1_test= compute_f1(predLabels, correctLabels, idx2Label)
+print("Test-Data: Prec: %.3f, Rec: %.3f, F1: %.3f" % (pre_test, rec_test, f1_test))
