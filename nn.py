@@ -27,13 +27,9 @@ def tag_dataset(dataset):
     return predLabels, correctLabels
 
 
-# trainSentences = readfile("data/train.txt")
-# devSentences = readfile("data/valid.txt")
-# testSentences = readfile("data/test.txt")
-
-trainSentences = readfile("dataSimpleQA/train.txt")
-devSentences = readfile("dataSimpleQA/valid.txt")
-testSentences = readfile("dataSimpleQA/test.txt")
+trainSentences = readfile("data/train.txt")
+devSentences = readfile("data/valid.txt")
+testSentences = readfile("data/test.txt")
 
 trainSentences = addCharInformatioin(trainSentences)
 devSentences = addCharInformatioin(devSentences)
