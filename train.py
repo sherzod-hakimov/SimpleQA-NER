@@ -46,8 +46,10 @@ for dataset in [trainSentences, devSentences, testSentences]:
 
 # :: Create a mapping for the labels ::
 label2Idx = {}
-for label in labelSet:
-    label2Idx[label] = len(label2Idx)
+label2Idx["I"] =1
+label2Idx["O"] =0
+# for label in labelSet:
+#     label2Idx[label] = len(label2Idx)
 
 # :: Hard coded case lookup ::
 case2Idx = {'numeric': 0, 'allLower':1, 'allUpper':2, 'initialUpper':3, 'other':4, 'mainly_numeric':5, 'contains_digit': 6, 'PADDING_TOKEN':7}

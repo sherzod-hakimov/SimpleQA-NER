@@ -8,6 +8,8 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.initializers import RandomUniform
 import os
 import json
+from difflib import SequenceMatcher
+import requests
 
 def tag_dataset(dataset):
     correctLabels = []
@@ -44,8 +46,10 @@ for dataset in [trainSentences, devSentences, testSentences]:
 
 # :: Create a mapping for the labels ::
 label2Idx = {}
-for label in labelSet:
-    label2Idx[label] = len(label2Idx)
+label2Idx["I"] =1
+label2Idx["O"] =0
+# for label in labelSet:
+#     label2Idx[label] = len(label2Idx)
 
 # :: Hard coded case lookup ::
 case2Idx = {'numeric': 0, 'allLower': 1, 'allUpper': 2, 'initialUpper': 3, 'other': 4, 'mainly_numeric': 5,
@@ -107,22 +111,118 @@ model.compile(loss='sparse_categorical_crossentropy', optimizer='nadam')
 model.summary()
 
 
-
-test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx,char2Idx))
-
-path = "models/ner_model_epoch_100"
+path = "models/ner_model_epoch_70.hdf5"
 model.load_weights(path)
 
-
-with open('/data/test_raw.txt') as f:
+with open('data/test_all_ngrams.txt') as f:
     content = f.readlines()
     f = open('data/test_filtered.txt', 'w')
 
-    for line in content:
+    upper_bound_count = 0
+    empty_prediction_count = 0
+    empty_candidate_count = 0
+
+    for i, line in enumerate(content):
 
         json_data = json.loads(line)
-        text = json_data['text']
+        text = json_data["text"]
         candidates = json_data['candidates']
+        filteredCandidates = []
+
+        if len(candidates) == 0:
+            empty_candidate_count +=1
+
+        if len(candidates) == 1:
+            filteredCandidates.append(candidates[0])
+        else:
+            words = text.split(' ')
+
+            tokens = []
+            for w in words:
+                tokens.append([w, 'O'])
+
+            testSentences = []
+            testSentences.append(tokens)
+            testSentences = addCharInformatioin(testSentences)
+            test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx, char2Idx))
 
 
-        testSentences = addCharInformatioin(testSentences)
+            tokens, casing, char, labels = test_set[0]
+            tokens = np.asarray([tokens])
+            casing = np.asarray([casing])
+            char = np.asarray([char])
+            prediction = model.predict([tokens, char], verbose=False)[0]
+            prediction = prediction.argmax(axis=-1)  # Predict the classes
+
+            predicted_span = ""
+            start_index = -1
+            end_index = -1
+            for token_index, pred_label in enumerate(prediction):
+                if pred_label == 1:  ## I
+                    if start_index == -1:
+                        start_index = token_index
+                    end_index = token_index + 1
+                    predicted_span += words[token_index] + " "
+            predicted_span = predicted_span.strip()
+
+            if predicted_span == "":
+                empty_prediction_count+=1
+
+
+            for c in candidates:
+                if (c['startToken'] == start_index and c['endToken'] == end_index):
+                    if len(c['predicates']) > 0:
+                        filteredCandidates.append(c)
+
+            ## find the most similar if it doesn't match any candidate span
+            max_similarity_score = 0
+            max_candidate = None
+            if len(filteredCandidates) == 0:
+                for c in candidates:
+                    if len(c['predicates']) > 0:
+
+                        nGram = json.dumps(c['ngram'])
+                        firstString = nGram.strip().replace("\"", "")
+                        secondString = predicted_span.strip().replace("\"", "")
+                        similarity_score = SequenceMatcher(None, firstString, secondString).ratio()
+
+                        if (similarity_score > max_similarity_score):
+                            max_similarity_score = similarity_score
+                            max_candidate = c
+                if max_candidate != None:
+                    filteredCandidates.append(max_candidate)
+
+            ## find the max ngram if it doesn't match any candidate span
+            max_ngram = 0
+            max_candidate = None
+            if len(filteredCandidates) == 0:
+                for c in candidates:
+                    if max_ngram < c["ngramSize"]:
+                        max_candidate = c
+                        max_ngram = c["ngramSize"]
+                if max_candidate!=None:
+                    filteredCandidates.append(max_candidate)
+
+        ##just increment if the expected is in the list
+        for c in filteredCandidates:
+            if json_data["subject"] == None:
+                print(json_data)
+            if c["uri"] == json_data["subject"]:
+                upper_bound_count+=1
+                break
+
+        filteredLine = {}
+
+        filteredLine['text'] = json_data['text']
+        filteredLine['subject'] = json_data['subject']
+        filteredLine['predicate'] = json_data['predicate']
+        filteredLine['candidates'] = filteredCandidates
+
+        f.write(json.dumps(filteredLine) + '\n')  # python will convert \n to os.linesep
+    f.close()  # you can omit in most cases as the destructor will call it
+
+    upper_boud = upper_bound_count/float(len(content))
+
+    print("Upper bound: "+str(upper_boud))
+    print("Empty prediction: "+str(empty_prediction_count))
+    print("Empty candidate: " + str(empty_candidate_count))

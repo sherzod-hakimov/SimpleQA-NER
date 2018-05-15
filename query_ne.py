@@ -7,11 +7,15 @@ from keras.utils import plot_model,Progbar
 from keras.preprocessing.sequence import pad_sequences
 from keras.initializers import RandomUniform
 import os
-
+import json
+from difflib import SequenceMatcher
+import requests
+from urllib.parse import quote
 
 def tag_dataset(dataset):
     correctLabels = []
     predLabels = []
+    b = Progbar(len(dataset))
     for i,data in enumerate(dataset):
         tokens, casing,char, labels = data
         tokens = np.asarray([tokens])
@@ -21,7 +25,29 @@ def tag_dataset(dataset):
         pred = pred.argmax(axis=-1) #Predict the classes
         correctLabels.append(labels)
         predLabels.append(pred)
+        b.update(i)
     return predLabels, correctLabels
+
+def query(ngram, sim_threshold):
+    content = []
+
+    ngram = quote(ngram)
+
+    try:
+        response = requests.get("http://purpur-v10:8080/findEntities?query="+ngram+"&k=100")
+        content = json.loads(response.content.decode('utf-8'))
+    except json.decoder.JSONDecodeError as e:
+        print("NGram: "+ngram)
+        print(e)
+
+    if len(content) == 0:
+        try:
+            response = requests.get("http://purpur-v10:8080/findEntitiesWithPartialMatch?query="+ngram+"&k=100&minSim="+str(sim_threshold))
+            content = json.loads(response.content.decode('utf-8'))
+        except json.decoder.JSONDecodeError as e:
+            print("NGram: " + ngram)
+            print(e)
+    return content
 
 trainSentences = readfile("data/train.txt")
 devSentences = readfile("data/valid.txt")
@@ -44,7 +70,6 @@ for dataset in [trainSentences, devSentences, testSentences]:
 label2Idx = {}
 label2Idx["I"] =1
 label2Idx["O"] =0
-
 # for label in labelSet:
 #     label2Idx[label] = len(label2Idx)
 
@@ -108,29 +133,94 @@ model.compile(loss='sparse_categorical_crossentropy', optimizer='nadam')
 model.summary()
 
 
-
-test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx,char2Idx))
-test_batch,test_batch_len = createBatches(test_set)
-
-
-maxF1 = float(0)
-maxEpoch = 0
-
-for epoch in range(0, 100):
-    path = "models/ner_model_epoch_"+str(epoch)+".hdf5"
-    if os.path.isfile(path):
-        model.load_weights(path)
-        predLabels, correctLabels = tag_dataset(test_batch)
-        f1_test = compute_f1(predLabels, correctLabels, idx2Label)
-
-        if f1_test > maxF1:
-            maxF1 = f1_test
-            maxEpoch = epoch
-        print("Epoch: " + str(epoch) + " F1: " + str(f1_test))
+path = "models/ner_model_epoch_70.hdf5"
+model.load_weights(path)
 
 
+with open('data/test_all_ngrams.txt') as f:
+    content = f.readlines()
+    f = open('data/test_filtered.txt', 'w')
 
+    upper_bound_count = 0
+    empty_prediction_count = 0
+    empty_candidate_count = 0
+    total_count = 0
 
+    for i, line in enumerate(content):
 
-#   Performance on test dataset
-print("Test-Data: Epoch: "+str(maxEpoch)+" F1: "+str(maxF1))
+        total_count+=1
+
+        # if i == 1000:
+        #     break
+
+        json_data = json.loads(line)
+        text = json_data["text"]
+        words = text.split(' ')
+
+        tokens = []
+        for w in words:
+            tokens.append([w, 'O'])
+
+        testSentences = []
+        testSentences.append(tokens)
+        testSentences = addCharInformatioin(testSentences)
+        test_set = padding(createMatrices(testSentences, word2Idx, label2Idx, case2Idx, char2Idx))
+
+        tokens, casing, char, labels = test_set[0]
+        tokens = np.asarray([tokens])
+        casing = np.asarray([casing])
+        char = np.asarray([char])
+        prediction = model.predict([tokens, char], verbose=False)[0]
+        prediction = prediction.argmax(axis=-1)  # Predict the classes
+
+        predicted_span = ""
+        start_index = -1
+        end_index = -1
+        for token_index, pred_label in enumerate(prediction):
+            if pred_label == 1:  ## I
+                if start_index == -1:
+                    start_index = token_index
+                end_index = token_index + 1
+                predicted_span += words[token_index] + " "
+        predicted_span = predicted_span.strip()
+
+        filteredCandidates = []
+
+        if predicted_span == "":
+            empty_prediction_count += 1
+        else:
+            candidates = query(predicted_span, 0.7)
+            if len(candidates) > 0:
+                filteredCandidates = candidates
+            is_found = False
+            for c in candidates:
+                if c["uri"] == json_data["subject"]:
+                    upper_bound_count += 1
+                    is_found = True
+                    break
+            if not is_found:
+                print(text+"-> "+predicted_span +" : " + json_data['subject'])
+
+        ##just increment if the expected is in the list
+        for c in filteredCandidates:
+            if json_data["subject"] == None:
+                print(json_data)
+            if c["uri"] == json_data["subject"]:
+                upper_bound_count+=1
+                break
+
+        filteredLine = {}
+
+        filteredLine['text'] = json_data['text']
+        filteredLine['subject'] = json_data['subject']
+        filteredLine['predicate'] = json_data['predicate']
+        filteredLine['candidates'] = filteredCandidates
+
+        # f.write(json.dumps(filteredLine) + '\n')  # python will convert \n to os.linesep
+    f.close()  # you can omit in most cases as the destructor will call it
+
+    upper_boud = upper_bound_count/float(total_count)
+
+    print("Upper bound: "+str(upper_boud))
+    print("Empty prediction: "+str(empty_prediction_count))
+    print("Empty candidate: " + str(empty_candidate_count))

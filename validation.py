@@ -36,7 +36,7 @@ def compute_precision(guessed_sentences, correct_sentences):
         assert(len(guessed) == len(correct))
         idx = 0
         while idx < len(guessed):
-            if guessed[idx][0] == 'B': #A new chunk starts
+            if guessed[idx][0] == 'I': #A new chunk starts
                 count += 1
                 
                 if guessed[idx] == correct[idx]:

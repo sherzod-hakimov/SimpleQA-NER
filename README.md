@@ -1,5 +1,7 @@
-# Named-Entity-Recognition-with-Bidirectional-LSTM-CNNs
-  A keras implementation of Bidirectional-LSTM_CNNs for Named-Entity-Recoganition. The original paper can be found at https://arxiv.org/abs/1511.08308
+Named Entity Recognition and Linking for SimpleQA dataset
+Original code from https://github.com/kamalkraj/Named-Entity-Recognition-with-Bidirectional-LSTM-CNNs
+
+A keras implementation of Bidirectional-LSTM_CNNs for Named-Entity-Recoganition. The original paper can be found at https://arxiv.org/abs/1511.08308
 
 The implementation differs from the original paper in the following ways :
   1) lexicons are not considered
@@ -19,7 +21,9 @@ The implementation differs from the original paper in the following ways :
  
  ## To run the script
  ```bash
-    python3 nn.py
+    python3 train.py
+    python3 test.py
+    python3 apply_ner.py
  ```
  ## Requirements
     1) numpy 
