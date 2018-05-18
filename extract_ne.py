@@ -48,18 +48,13 @@ def combine_tokens(ngram_tokens):
     return ngram
 
 def normalize_string(input, stemmer):
-    ngram = input.replace("\n","").replace("'s", "")
-    ngram = remove_accents(ngram)
+
+    input  = input.replace("\n","").replace("'s", "")
+
+    ngram = remove_accents(input)
     ## remove everything except alphanumeric
     ngram = re.sub('[^0-9a-zA-Z]+', '', ngram).strip().lower()
     ngram = strip_punctuation(ngram)
-
-    ngram = stemmer.stem(ngram)
-
-    #remove the char 's' if it's the last char in ngram
-    # if "s" in ngram:
-    #     if ngram[-1] == "s":
-    #         ngram = ngram[:-1]
 
     return ngram
 
@@ -100,6 +95,7 @@ def extract_subjects(sentence, dict, max_ngram_size, stopwords,exclude_small_ngr
             if len(normalized_ngram) < 3:
                 continue
 
+            # print("\t"+ngram + " -> "+ normalized_ngram)
 
             if normalized_ngram in dict.keys():
 
@@ -126,7 +122,6 @@ def load_index(file_path, stopwords,stemmer):
 
             uri = entries[0].replace("www.freebase.com/m/", "m.")
             mention = entries[1]
-
 
             if len(mention) > 50:
                 continue
@@ -196,7 +191,6 @@ def load_subject_predicates(file_path):
 
 if __name__ == "__main__":
     tokenizer = RegexpTokenizer(r'\w+')
-    # stemmer = PorterStemmer()
     stemmer = SnowballStemmer("english")
 
     ## get stop words and normalize
