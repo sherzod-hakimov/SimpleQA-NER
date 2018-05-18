@@ -54,4 +54,4 @@ ner_model.hdf5
 *.pyc
 models/
 
-data/SimpleQuestions_v2/
+data/SimpleQuestions_v2/freebase-FB2M.txt
