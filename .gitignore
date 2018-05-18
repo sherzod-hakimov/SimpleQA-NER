@@ -53,3 +53,5 @@ __pycache__/
 ner_model.hdf5
 *.pyc
 models/
+
+data/SimpleQuestions_v2/
