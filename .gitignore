@@ -55,3 +55,7 @@ ner_model.hdf5
 models/
 
 data/SimpleQuestions_v2/freebase-FB2M.txt
+data/.directory
+data/glove.6B.100d.txt
+data/ner_training_data.txt
+data/words.txt

@@ -89,7 +89,7 @@ def createBatches(data):
         batch_len.append(z)
     return batches,batch_len
 
-def createMatrices(sentences, word2Idx, label2Idx, case2Idx,char2Idx):
+def createMatrices(sentences, word2Idx, label2Idx, char2Idx):
     unknownIdx = word2Idx['UNKNOWN_TOKEN']
     paddingIdx = word2Idx['PADDING_TOKEN']    
         
