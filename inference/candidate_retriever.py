@@ -241,7 +241,7 @@ def load_index(file_path):
                 dict[mention] = uris
     return dict
 
-def load_freebase_index(file_path):
+def load_freebase_index(file_path, stopwords):
     dict = {}
 
     with open(file_path, encoding="utf-8") as f:
@@ -411,12 +411,14 @@ def extract_named_entities():
     stopwords = get_stopwords()
 
     print("Loading index")
-    mention_dict = load_index("../data/surface_forms.txt")
+    mention_dict = load_freebase_index("../data/surface_forms.txt", stopwords)
     print("Loading all predicates for each subject")
-    subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
+    # subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
 
     dataset_names = ["test"]
     max_ngram_size = 10
+    exclude_small_ngrams = True
+    exclude_stopwords = True
 
     for d in dataset_names:
 
@@ -435,65 +437,55 @@ def extract_named_entities():
                 target_predicate = data[1].replace("www.freebase.com/", "").replace("/", ".")
                 text = data[3].replace("\n", "")
 
-                candidates = extract_candidates_from_valid_ngram(text, mention_dict, max_ngram_size, target_subject)
+                candidates = extract_all_candidates(text, mention_dict, max_ngram_size, stopwords, exclude_small_ngrams, exclude_stopwords)
 
                 # not found
                 if candidates is None:
                     continue
 
-                correct_count += 1
+                for start_index, end_index, ngram, uri, freq in candidates:
+                    if uri == target_subject:
+                        correct_count += 1
 
-                tokens = text.split(" ")
 
-                ## take the first element, since all elements have the same start and end index
-                start_index, end_index, uri, freq = candidates[0]
 
-                document = "-DOCSTART- O\n"
-                for i, token in enumerate(tokens):
-                    token = remove_accents(token)
-                    token = strip_punctuation(token.lower())
-                    if i == start_index or (i > start_index and i < end_index):
-                        document += token + " I\n"
-                    else:
-                        document += token + " O\n"
 
-                f1.write(document + '\n')  # python will convert \n to os.linesep
-
-                candidates.sort(key=lambda tup: tup[3])  # sort by frequency
-                subject_candidates = list()
-
-                top_k = min(500, len(candidates))
-
-                added_uris = set()
-                for start_index, end_index, uri, freq in candidates[:top_k]:
-
-                    if uri in added_uris:
-                        continue
-
-                    subject_candidate = {}
-                    subject_candidate["startToken"] = int(start_index)
-                    subject_candidate["endToken"] = int(end_index)
-                    subject_candidate["uri"] = uri
-                    subject_candidate["frequency"] = int(freq)
-
-                    if uri not in subject_predicate_dict.keys():
-                        continue
-
-                    predicates = list()
-                    for p in subject_predicate_dict[uri]:
-                        predicates.append(p)
-
-                    subject_candidate["predicates"] = predicates
-                    subject_candidates.append(subject_candidate)
-
-                entry = {}
-                entry["text"] = text
-                entry["subject"] = target_subject
-                entry["predicate"] = target_predicate
-                entry["candidates"] = subject_candidates
-
-                f2.write(json.dumps(entry) + '\n')
+                # candidates.sort(key=lambda tup: tup[3])  # sort by frequency
+                # subject_candidates = list()
+                #
+                # top_k = min(500, len(candidates))
+                #
+                # added_uris = set()
+                # for start_index, end_index, uri, freq in candidates[:top_k]:
+                #
+                #     if uri in added_uris:
+                #         continue
+                #
+                #     subject_candidate = {}
+                #     subject_candidate["startToken"] = int(start_index)
+                #     subject_candidate["endToken"] = int(end_index)
+                #     subject_candidate["uri"] = uri
+                #     subject_candidate["frequency"] = int(freq)
+                #
+                #     if uri not in subject_predicate_dict.keys():
+                #         continue
+                #
+                #     predicates = list()
+                #     for p in subject_predicate_dict[uri]:
+                #         predicates.append(p)
+                #
+                #     subject_candidate["predicates"] = predicates
+                #     subject_candidates.append(subject_candidate)
+                #
+                # entry = {}
+                # entry["text"] = text
+                # entry["subject"] = target_subject
+                # entry["predicate"] = target_predicate
+                # entry["candidates"] = subject_candidates
+                #
+                # f1.write(json.dumps(entry) + '\n')
 
             f1.close()
-            f2.close()
         print("Found: " + str(correct_count / float(len(content))))
+
+extract_named_entities()
