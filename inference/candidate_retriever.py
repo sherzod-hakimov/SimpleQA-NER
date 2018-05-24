@@ -241,6 +241,52 @@ def load_index(file_path):
                 dict[mention] = uris
     return dict
 
+def load_freebase_index(file_path):
+    dict = {}
+
+    with open(file_path, encoding="utf-8") as f:
+        content = f.readlines()
+        for entry in content:
+
+            entries = entry.split("\t")
+            if len(entries) < 2:
+                continue
+
+            uri = entries[0].replace("www.freebase.com/m/", "m.")
+            mention = entries[1]
+
+            if len(mention) > 50:
+                continue
+
+            if len(mention) < 3:
+                continue
+
+            if " / " in mention:
+                mention = mention.split(" / ")[1]
+            if ", " in mention:
+                mention = mention.split(", ")[0]
+
+            mention = normalize_string(mention)
+
+            if mention in stopwords:
+                continue
+
+
+            if mention in dict.keys():
+                uris = dict[mention]
+
+                if uri in uris.keys():
+                    uris[uri] +=1
+                else:
+                    uris[uri] = 1
+
+                dict[mention] = uris
+            else:
+                uris = {}
+                uris[uri] = 1
+                dict[mention] = uris
+
+    return dict
 
 def load_subject_predicates(file_path):
     dict = {}
@@ -289,6 +335,98 @@ def generate_training_data():
 
             f1 = open('../data/ner_training_data.txt', 'w')
             f2 = open('../data/simple_qa_train_after_ner.txt', 'w')
+
+            for i, line in enumerate(content):
+
+                data = line.split("\t")
+                target_subject = data[0].replace("www.freebase.com/m/", "m.")
+                target_predicate = data[1].replace("www.freebase.com/", "").replace("/", ".")
+                text = data[3].replace("\n", "")
+
+                candidates = extract_candidates_from_valid_ngram(text, mention_dict, max_ngram_size, target_subject)
+
+                # not found
+                if candidates is None:
+                    continue
+
+                correct_count += 1
+
+                tokens = text.split(" ")
+
+                ## take the first element, since all elements have the same start and end index
+                start_index, end_index, uri, freq = candidates[0]
+
+                document = "-DOCSTART- O\n"
+                for i, token in enumerate(tokens):
+                    token = remove_accents(token)
+                    token = strip_punctuation(token.lower())
+                    if i == start_index or (i > start_index and i < end_index):
+                        document += token + " I\n"
+                    else:
+                        document += token + " O\n"
+
+                f1.write(document + '\n')  # python will convert \n to os.linesep
+
+                candidates.sort(key=lambda tup: tup[3])  # sort by frequency
+                subject_candidates = list()
+
+                top_k = min(500, len(candidates))
+
+                added_uris = set()
+                for start_index, end_index, uri, freq in candidates[:top_k]:
+
+                    if uri in added_uris:
+                        continue
+
+                    subject_candidate = {}
+                    subject_candidate["startToken"] = int(start_index)
+                    subject_candidate["endToken"] = int(end_index)
+                    subject_candidate["uri"] = uri
+                    subject_candidate["frequency"] = int(freq)
+
+                    if uri not in subject_predicate_dict.keys():
+                        continue
+
+                    predicates = list()
+                    for p in subject_predicate_dict[uri]:
+                        predicates.append(p)
+
+                    subject_candidate["predicates"] = predicates
+                    subject_candidates.append(subject_candidate)
+
+                entry = {}
+                entry["text"] = text
+                entry["subject"] = target_subject
+                entry["predicate"] = target_predicate
+                entry["candidates"] = subject_candidates
+
+                f2.write(json.dumps(entry) + '\n')
+
+            f1.close()
+            f2.close()
+        print("Found: " + str(correct_count / float(len(content))))
+
+def extract_named_entities():
+    ## get stop words\
+    stopwords = get_stopwords()
+
+    print("Loading index")
+    mention_dict = load_index("../data/surface_forms.txt")
+    print("Loading all predicates for each subject")
+    subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
+
+    dataset_names = ["test"]
+    max_ngram_size = 10
+
+    for d in dataset_names:
+
+        correct_count = 0
+        dataset_path = "../data/SimpleQuestions_v2/annotated_fb_data_" + d + ".txt"
+
+        with open(dataset_path, encoding="utf-8") as f:
+            content = f.readlines()
+
+            f1 = open("../data/"+d+".txt", "w")
 
             for i, line in enumerate(content):
 
