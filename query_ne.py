@@ -1,7 +1,7 @@
 import numpy as np
 from keras.models import Model
 from keras.layers import TimeDistributed,Conv1D,Dense,Embedding,Input,Dropout,LSTM,Bidirectional,MaxPooling1D,Flatten,concatenate
-from train.prepro import readfile, createMatrices, addCharInformatioin,padding
+from inference.prepro import readfile, createMatrices, addCharInformatioin,padding
 from keras.utils import Progbar
 from keras.initializers import RandomUniform
 import json

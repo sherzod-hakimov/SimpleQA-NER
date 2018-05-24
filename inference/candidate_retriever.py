@@ -11,14 +11,14 @@ import unidecode
 from difflib import SequenceMatcher
 from string import punctuation
 from gensim.utils import deaccent
-from difflib import SequenceMatcher
 import re
 
 
 def strip_punctuation(s):
     return ''.join(c for c in s if c not in punctuation)
 
-def stopwords():
+
+def get_stopwords():
     initial_stopwords = [
         "a", "about", "above", "across", "after", "afterwards", "again", "against",
         "all", "almost", "alone", "along", "already", "also", "although", "always",
@@ -61,10 +61,14 @@ def stopwords():
         "who", "whoever", "whole", "whom", "whose", "why", "will", "with",
         "within", "without", "would", "yet", "you", "your", "yours", "yourself",
         "yourselves"]
+    stopwords = list()
+    for s in initial_stopwords:
+        s = normalize_string(s)
+        stopwords.append(s)
     return initial_stopwords
 
 
-def is_invalid_span(new_start_index, new_end_index, candidates: list, stemmer):
+def is_invalid_span(new_start_index, new_end_index, candidates: list):
     for start_index, end_index, ngram, uri, freq in candidates:
         if start_index <= new_start_index and end_index >= new_end_index:
 
@@ -74,8 +78,6 @@ def is_invalid_span(new_start_index, new_end_index, candidates: list, stemmer):
             for p in prefixes:
                 if p == ngram.lower().split(" ")[0]:
                     return False
-                # if normalized_ngram.startswith(p):
-                #     return False
             return True
     return False
 
@@ -101,17 +103,10 @@ def combine_tokens(ngram_tokens):
 def normalize_string(input):
     input = input.replace("\n", "").replace("'s", "")
 
-    # if len(input) > 3:
-    #     if input[-1] == "s":
-    #         input = stemmer.stem(input)
-
     ngram = remove_accents(input)
     ## remove everything except alphanumeric
     ngram = re.sub('[^0-9a-zA-Z]+', '', ngram).strip().lower()
     ngram = strip_punctuation(ngram)
-
-
-
 
     return ngram
 
@@ -123,9 +118,44 @@ def span(ngram_tokens, tokens):
 
 
 def remove_accents(input):
-    # output = unidecode.unidecode(input)
     output = deaccent(input)
+    output = unidecode.unidecode(output)
     return output
+
+
+def extract_candidates_from_valid_ngram(sentence, dict, max_ngram_size, target_subject):
+    tokens = sentence.split(" ")
+    ngram_size = max_ngram_size
+    candidates = list()
+    while ngram_size > 0:
+        extracted_ngrams = ngrams(tokens, ngram_size)
+        for ngram_tokens in extracted_ngrams:
+
+            start_index, end_index = span(ngram_tokens, tokens)
+
+            ngram = combine_tokens(ngram_tokens)
+            normalized_ngram = normalize_string(ngram)
+
+            if normalized_ngram in dict.keys():
+
+                matches = dict[normalized_ngram]
+
+                has_correct_uri = False
+                for uri in matches.keys():
+                    if uri == target_subject:
+                        has_correct_uri = True
+                        break
+
+                if has_correct_uri:
+                    for uri in matches.keys():
+                        freq = matches[uri]
+                        candidates.append([start_index, end_index, uri, freq])
+
+                    return candidates
+        ##decrease the ngram size
+        ngram_size = ngram_size - 1
+    return None
+
 
 def extract_candidates(ngram, dict, partial_match=False):
     normalized_ngram = normalize_string(ngram)
@@ -136,22 +166,22 @@ def extract_candidates(ngram, dict, partial_match=False):
         for key in dict.keys:
             similarity_score = SequenceMatcher(None, key, normalized_ngram).ratio()
 
-            if similarity_score >=0.8:
+            if similarity_score >= 0.8:
                 matches = dict[key]
 
                 for uri in matches.keys():
                     freq = matches[uri]
-                    candidates.append([start_index, end_index, ngram, uri, freq])
+                    candidates.append([uri, freq])
     else:
         if normalized_ngram in dict.keys():
             matches = dict[normalized_ngram]
             for uri in matches.keys():
                 freq = matches[uri]
-                candidates.append([start_index, end_index, ngram, uri, freq])
+                candidates.append([uri, freq])
 
     return candidates
 
-def extract_subjects(sentence, dict, max_ngram_size, stopwords, exclude_small_ngrams, exclude_stop_words, stemmer):
+def extract_all_candidates(sentence, dict, max_ngram_size, stopwords, exclude_small_ngrams, exclude_stop_words):
     candidates = list()
     tokens = sentence.split(" ")
     ngram_size = max_ngram_size
@@ -164,7 +194,7 @@ def extract_subjects(sentence, dict, max_ngram_size, stopwords, exclude_small_ng
             start_index, end_index = span(ngram_tokens, tokens)
 
             if exclude_small_ngrams:
-                if is_invalid_span(start_index, end_index, candidates, stemmer):
+                if is_invalid_span(start_index, end_index, candidates):
                     continue
 
             ##skip ngrams that consist of only stopwords
@@ -187,7 +217,6 @@ def extract_subjects(sentence, dict, max_ngram_size, stopwords, exclude_small_ng
         ##decrease the ngram size
         ngram_size = ngram_size - 1
     return candidates
-
 
 def load_index(file_path):
     dict = {}
@@ -216,163 +245,117 @@ def load_index(file_path):
 def load_subject_predicates(file_path):
     dict = {}
 
-    with open(file_path) as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.readlines()
         for entry in content:
 
             entries = entry.split("\t")
-            subject = data[0].replace("www.freebase.com/m/", "m.")
-            predicate = data[1].replace("www.freebase.com/", "")
+            if len(entries) < 2:
+                continue
 
-            if subject in dict.keys():
-                predicates = dict[subject]
+            uri = entries[0].replace("www.freebase.com/m/", "m.")
+            predicate = entries[1].replace("www.freebase.com/", "").replace("/", ".")
+
+            if uri in dict.keys():
+                predicates = dict[uri]
                 predicates.add(predicate)
-                dict[subject] = predicates
+                dict[uri] = predicates
             else:
                 predicates = set()
                 predicates.add(predicate)
-                dict[subject] = predicates
+                dict[uri] = predicates
     return dict
 
 
-def load_subject_triple_counts(file_path):
-    dict = {}
-
-    with open(file_path) as f:
-        content = f.readlines()
-        for entry in content:
-            entries = entry.split("\t")
-            if len(entries) != 2:
-                continue
-
-            subject = entries[0]
-            count = int(entries[1].replace("\n", ""))
-
-            dict[subject] = count
-
-    return dict
-
-
-if __name__ == "__main__":
-    tokenizer = RegexpTokenizer(r'\w+')
-    stemmer = SnowballStemmer("english")
-
-    ## get stop words and normalize
-    initial_stopwords = stopwords()
-    stopwords = list()
-    for s in initial_stopwords:
-        s = normalize_string(s)
-        stopwords.append(s)
+def generate_training_data():
+    ## get stop words\
+    stopwords = get_stopwords()
 
     print("Loading index")
     mention_dict = load_index("../data/surface_forms_new.txt")
-    subject_predicates_dict = []  # load_subject_predicates("data/SimpleQuestions_v2/freebase-FB2M.txt")
-    subject_triple_counts = []#load_subject_triple_counts("data/subject_triple_counts.txt")
+    print("Loading all predicates for each subject")
+    subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
 
-    dataset_names = ["test"]
+    dataset_names = ["train"]
     max_ngram_size = 10
-    exclude_small_ngrams = True
-    exclude_stop_words = True
 
     for d in dataset_names:
+
         correct_count = 0
-        incorrect_count = 0
-        total_count = 0
-        number_of_candidates = 0
-
         dataset_path = "../data/SimpleQuestions_v2/annotated_fb_data_" + d + ".txt"
-
-        recall_ranges = [1, 5, 10, 40, 50, 100, 200, 300, 400, 500, 1000, 2000, 10000]
-        recall_at_k = {}
-
-        ##initialize with 0 count
-        for r in recall_ranges:
-            recall_at_k[r] = 0
 
         with open(dataset_path, encoding="utf-8") as f:
             content = f.readlines()
 
-            for i, line in enumerate(content):
+            f1 = open('../data/ner_training_data.txt', 'w')
+            f2 = open('../data/simple_qa_train_after_ner.txt', 'w')
 
-                total_count += 1
+            for i, line in enumerate(content):
 
                 data = line.split("\t")
                 target_subject = data[0].replace("www.freebase.com/m/", "m.")
-                target_predicate = data[1].replace("www.freebase.com/", "").replace("/",".")
+                target_predicate = data[1].replace("www.freebase.com/", "").replace("/", ".")
                 text = data[3].replace("\n", "")
 
-                candidates = extract_subjects(text, mention_dict, max_ngram_size, stopwords, exclude_small_ngrams,
-                                            exclude_stop_words, stemmer)
+                candidates = extract_candidates_from_valid_ngram(text, mention_dict, max_ngram_size, target_subject)
 
-                subjects = list()
+                # not found
+                if candidates is None:
+                    continue
 
-                valid_ngram = ""
-                for start_index, end_index, ngram, uri, freq in candidates:
-                    if uri == target_subject:
-                        valid_ngram = ngram
-                        break
+                correct_count += 1
 
-                for start_index, end_index, ngram, uri, freq in candidates:
-                    if valid_ngram == ngram:
-                        subjects.append([start_index, end_index, ngram, uri, freq])
+                tokens = text.split(" ")
 
+                ## take the first element, since all elements have the same start and end index
+                start_index, end_index, uri, freq = candidates[0]
 
-                number_of_candidates += len(subjects)
-                subjects.sort(key=lambda tup: tup[4])  # sorts in place
+                document = "-DOCSTART- O\n"
+                for i, token in enumerate(tokens):
+                    token = remove_accents(token)
+                    token = strip_punctuation(token.lower())
+                    if i == start_index or (i > start_index and i < end_index):
+                        document += token + " I\n"
+                    else:
+                        document += token + " O\n"
 
-                is_found = False
-                ### crop the list and compare recall@k
-                for range in recall_ranges:
-                    ##no need to crop again if it's found on prev k number
-                    if is_found:
-                        recall_at_k[range] = recall_at_k[range] + 1
+                f1.write(document + '\n')  # python will convert \n to os.linesep
+
+                candidates.sort(key=lambda tup: tup[3])  # sort by frequency
+                subject_candidates = list()
+
+                top_k = min(500, len(candidates))
+
+                added_uris = set()
+                for start_index, end_index, uri, freq in candidates[:top_k]:
+
+                    if uri in added_uris:
                         continue
 
-                    top_k = min(range, len(subjects))
-                    filtered_subjects = subjects[:top_k]
+                    subject_candidate = {}
+                    subject_candidate["startToken"] = int(start_index)
+                    subject_candidate["endToken"] = int(end_index)
+                    subject_candidate["uri"] = uri
+                    subject_candidate["frequency"] = int(freq)
 
-                    for start_index, end_index, ngram, uri, freq in filtered_subjects:
-                        if uri == target_subject:
-                            is_found = True
-                            break
+                    if uri not in subject_predicate_dict.keys():
+                        continue
 
-                    if is_found:
-                        recall_at_k[range] = recall_at_k[range] + 1
+                    predicates = list()
+                    for p in subject_predicate_dict[uri]:
+                        predicates.append(p)
 
-                if is_found:
-                    correct_count = correct_count + 1
-                    # found_ngrams = set()
-                    # for start_index, end_index, ngram, uri, freq, triple_count in subjects:
-                    #     found_ngrams.add(ngram)
-                    #
-                    # print(text)
-                    # print("Found ngrams: " + str(found_ngrams) + "\n")
-                    #
-                    # if correct_count == 30:
-                    #     break
-                # else:
-                #     incorrect_count += 1
-                #
-                #     a = []
-                #     if target_subject in inverted_mention_dict.keys():
-                #         print(text)
-                #         print(target_subject)
-                #
-                #         a = inverted_mention_dict[target_subject]
-                #         print("Available mentions: " + str(a))
-                #
-                #         found_ngrams = set()
-                #         for start_index, end_index, ngram, uri, freq, triple_count in subjects:
-                #             found_ngrams.add(ngram)
-                #
-                #         print("Found ngrams: " + str(found_ngrams) + "\n")
+                    subject_candidate["predicates"] = predicates
+                    subject_candidates.append(subject_candidate)
 
-            score = correct_count / float(total_count)
-            avg_number_of_candidates = number_of_candidates / float(total_count)
+                entry = {}
+                entry["text"] = text
+                entry["subject"] = target_subject
+                entry["predicate"] = target_predicate
+                entry["candidates"] = subject_candidates
 
-            print("Dataset: " + d + " Upper bound: " + str(score))
-            print("Average #candidates: " + str(avg_number_of_candidates))
+                f2.write(json.dumps(entry) + '\n')
 
-            for k in recall_ranges:
-                recall_at_k_score = recall_at_k[k] / float(total_count)
-                print("\tRecall@" + str(k) + " : " + str(recall_at_k_score))
+            f1.close()
+            f2.close()
+        print("Found: " + str(correct_count / float(len(content))))

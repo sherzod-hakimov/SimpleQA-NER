@@ -99,8 +99,7 @@ def createMatrices(sentences, word2Idx, label2Idx, char2Idx):
     unknownWordCount = 0
     
     for sentence in sentences:
-        wordIndices = []    
-        caseIndices = []
+        wordIndices = []
         charIndices = []
         labelIndices = []
         
@@ -118,12 +117,11 @@ def createMatrices(sentences, word2Idx, label2Idx, char2Idx):
                 charIdx.append(char2Idx[x])
             #Get the label and map to int            
             wordIndices.append(wordIdx)
-            # caseIndices.append(getCasing(word, case2Idx))
             charIndices.append(charIdx)
             label = label.replace("\n", "")
             labelIndices.append(label2Idx[label])
            
-        dataset.append([wordIndices, caseIndices, charIndices, labelIndices]) 
+        dataset.append([wordIndices, charIndices, labelIndices])
         
     return dataset
 
@@ -131,19 +129,17 @@ def iterate_minibatches(dataset,batch_len):
     start = 0
     for i in batch_len:
         tokens = []
-        caseing = []
         char = []
         labels = []
         data = dataset[start:i]
         start = i
         for dt in data:
-            t,c,ch,l = dt
+            t,ch,l = dt
             l = np.expand_dims(l,-1)
             tokens.append(t)
-            caseing.append(c)
             char.append(ch)
             labels.append(l)
-        yield np.asarray(labels),np.asarray(tokens),np.asarray(caseing),np.asarray(char)
+        yield np.asarray(tokens),np.asarray(char), np.asarray(labels)
 
 def addCharInformatioin(Sentences):
     for i,sentence in enumerate(Sentences):
@@ -155,9 +151,9 @@ def addCharInformatioin(Sentences):
 def padding(Sentences):
     maxlen = 52
     for sentence in Sentences:
-        char = sentence[2]
+        char = sentence[1]
         for x in char:
             maxlen = max(maxlen,len(x))
     for i,sentence in enumerate(Sentences):
-        Sentences[i][2] = pad_sequences(Sentences[i][2],52,padding='post')
+        Sentences[i][1] = pad_sequences(Sentences[i][1],52,padding='post')
     return Sentences
