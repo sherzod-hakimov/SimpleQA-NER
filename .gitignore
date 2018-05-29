@@ -57,6 +57,6 @@ models/
 data/SimpleQuestions_v2/freebase-FB2M.txt
 data/.directory
 data/glove.6B.100d.txt
-data/ner_training_data.txt
-data/words.txt
+data/simple_qa_test_before_ner.txt
 data/simple_qa_train_after_ner.txt
+data/simple_qa_valid_before_ner.txt

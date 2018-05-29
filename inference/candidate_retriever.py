@@ -241,8 +241,10 @@ def load_index(file_path):
                 dict[mention] = uris
     return dict
 
-def load_freebase_index(file_path, stopwords):
+def load_freebase_index(file_path, stopwords=None):
     dict = {}
+
+    stopwords = get_stopwords()
 
     with open(file_path, encoding="utf-8") as f:
         content = f.readlines()
@@ -312,13 +314,29 @@ def load_subject_predicates(file_path):
                 dict[uri] = predicates
     return dict
 
+def load_subject_triple_counts(file_path):
+    dict = {}
+
+    with open(file_path) as f:
+        content = f.readlines()
+        for entry in content:
+            entries = entry.split("\t")
+            if len(entries) != 2:
+                continue
+
+            subject = entries[0]
+            count = int(entries[1].replace("\n", ""))
+
+            dict[subject] = count
+
+    return dict
 
 def generate_training_data():
     ## get stop words\
     stopwords = get_stopwords()
 
     print("Loading index")
-    mention_dict = load_index("../data/surface_forms_new.txt")
+    mention_dict = load_index("../data/merged_surface_forms.txt")
     print("Loading all predicates for each subject")
     subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
 
@@ -359,7 +377,8 @@ def generate_training_data():
                 document = "-DOCSTART- O\n"
                 for i, token in enumerate(tokens):
                     token = remove_accents(token)
-                    token = strip_punctuation(token.lower())
+                    token = strip_punctuation(token)
+                    token = token.strip()
                     if i == start_index or (i > start_index and i < end_index):
                         document += token + " I\n"
                     else:
@@ -370,10 +389,9 @@ def generate_training_data():
                 candidates.sort(key=lambda tup: tup[3])  # sort by frequency
                 subject_candidates = list()
 
-                top_k = min(500, len(candidates))
 
                 added_uris = set()
-                for start_index, end_index, uri, freq in candidates[:top_k]:
+                for start_index, end_index, uri, freq in candidates:
 
                     if uri in added_uris:
                         continue
@@ -411,24 +429,29 @@ def extract_named_entities():
     stopwords = get_stopwords()
 
     print("Loading index")
-    mention_dict = load_freebase_index("../data/surface_forms.txt", stopwords)
-    print("Loading all predicates for each subject")
-    # subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
+    # mention_dict = load_freebase_index("../data/surface_forms.txt", stopwords)
+    mention_dict = load_index("../data/merged_surface_forms.txt")
 
-    dataset_names = ["test"]
+    subject_triple_counts = load_subject_triple_counts("../data/subject_triple_counts.txt")
+    print("Loading all predicates for each subject")
+    subject_predicate_dict = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
+
+    dataset_names = ["test", "valid"]
     max_ngram_size = 10
     exclude_small_ngrams = True
     exclude_stopwords = True
 
     for d in dataset_names:
 
-        correct_count = 0
         dataset_path = "../data/SimpleQuestions_v2/annotated_fb_data_" + d + ".txt"
 
+        correct_count = 0
         with open(dataset_path, encoding="utf-8") as f:
             content = f.readlines()
 
-            f1 = open("../data/"+d+".txt", "w")
+            print("Dataset: "+ d)
+
+            f1 = open("../data/simple_qa_"+d+"_before_ner.txt", "w")
 
             for i, line in enumerate(content):
 
@@ -439,53 +462,163 @@ def extract_named_entities():
 
                 candidates = extract_all_candidates(text, mention_dict, max_ngram_size, stopwords, exclude_small_ngrams, exclude_stopwords)
 
-                # not found
-                if candidates is None:
-                    continue
+                candidates.sort(key=lambda tup: tup[4])  # sorts by freq
 
+                subject_candidates = list()
+
+                is_found = False
+
+                added_uris = set()
                 for start_index, end_index, ngram, uri, freq in candidates:
+
                     if uri == target_subject:
-                        correct_count += 1
+                        is_found=True
+
+                    if uri in added_uris:
+                        continue
+
+                    subject_candidate = {}
+                    subject_candidate["startToken"] = int(start_index)
+                    subject_candidate["endToken"] = int(end_index)
+                    subject_candidate["uri"] = uri
+                    subject_candidate["frequency"] = int(freq)
+
+                    if uri not in subject_predicate_dict.keys():
+                        continue
+
+                    predicates = list()
+                    for p in subject_predicate_dict[uri]:
+                        predicates.append(p)
+
+                    subject_candidate["predicates"] = predicates
+                    subject_candidates.append(subject_candidate)
+
+                entry = {}
+                entry["text"] = text
+                entry["subject"] = target_subject
+                entry["predicate"] = target_predicate
+                entry["candidates"] = subject_candidates
 
 
+                if is_found:
+                    correct_count+=1
 
-
-                # candidates.sort(key=lambda tup: tup[3])  # sort by frequency
-                # subject_candidates = list()
-                #
-                # top_k = min(500, len(candidates))
-                #
-                # added_uris = set()
-                # for start_index, end_index, uri, freq in candidates[:top_k]:
-                #
-                #     if uri in added_uris:
-                #         continue
-                #
-                #     subject_candidate = {}
-                #     subject_candidate["startToken"] = int(start_index)
-                #     subject_candidate["endToken"] = int(end_index)
-                #     subject_candidate["uri"] = uri
-                #     subject_candidate["frequency"] = int(freq)
-                #
-                #     if uri not in subject_predicate_dict.keys():
-                #         continue
-                #
-                #     predicates = list()
-                #     for p in subject_predicate_dict[uri]:
-                #         predicates.append(p)
-                #
-                #     subject_candidate["predicates"] = predicates
-                #     subject_candidates.append(subject_candidate)
-                #
-                # entry = {}
-                # entry["text"] = text
-                # entry["subject"] = target_subject
-                # entry["predicate"] = target_predicate
-                # entry["candidates"] = subject_candidates
-                #
-                # f1.write(json.dumps(entry) + '\n')
-
+                f1.write(json.dumps(entry) + '\n')
             f1.close()
-        print("Found: " + str(correct_count / float(len(content))))
+
+            print(d+" upperbound: "+str(correct_count/float(len(content))))
+
+def load_freebase_inverted_index(file_path, stopwords):
+    dict = {}
+
+    with open(file_path, encoding="utf-8") as f:
+        content = f.readlines()
+        for entry in content:
+
+            entries = entry.split("\t")
+            if len(entries) < 2:
+                continue
+
+            uri = entries[0].replace("www.freebase.com/m/", "m.")
+            mention = entries[1]
+
+            if mention in stopwords:
+                continue
+
+
+            if uri in dict.keys():
+                added = dict[uri]
+                added.add(mention)
+
+                dict[uri] = added
+            else:
+                added = set()
+                added.add(mention)
+                dict[uri] = added
+
+    return dict
+
+def test():
+    stopwords = get_stopwords()
+
+    print("Loading inverted index")
+    inverted_dict = load_freebase_inverted_index("../data/surface_forms.txt", stopwords)
+    print("Loading subject predicates")
+    subject_predicates = load_subject_predicates("../data/SimpleQuestions_v2/freebase-FB2M.txt")
+
+    subject = "m.04t1ftb"
+    object = "m.03nx4yz"
+
+    print("Subject"+str(inverted_dict[subject])+" predicates: "+str(subject_predicates[subject])+"\n")
+
+    candidates = ["m.0ldl3qs", "m.04t_038", "m.04t_05k", "m.0cgv06r"]
+
+    for c in candidates:
+        print("\t"+c+" mentions: "+ str(inverted_dict[c])+ " predicates: "+ str(subject_predicates[c])+  "\n")
+
+    print("Loading index")
+    mention_dict = load_freebase_index("../data/surface_forms.txt", stopwords)
+
+    s = "mildred pierce"
+    s = normalize_string(s)
+
+    print(mention_dict[s])
+
+def analyse_dataset():
+    dataset_names = ["test", "train", "valid"]
+
+    datasets = list()
+
+    for name in dataset_names:
+
+        dataset_path = "../data/SimpleQuestions_v2/annotated_fb_data_" + name + ".txt"
+
+        with open(dataset_path, encoding="utf-8") as f:
+            content = f.readlines()
+
+            predicates = set()
+            subjects = set()
+
+            for i, line in enumerate(content):
+
+                data = line.split("\t")
+                target_subject = data[0].replace("www.freebase.com/m/", "m.")
+                target_predicate = data[1].replace("www.freebase.com/", "").replace("/", ".")
+
+                subjects.add(target_subject)
+                predicates.add(target_predicate)
+
+            d = {}
+            d["subjects"] = subjects
+            d["predicates"] = predicates
+            d["dataset"] = name
+
+            datasets.append(d)
+
+    for d in datasets:
+        print(d["dataset"]+ "Subjects: "+str(len(d["subjects"])) +" Predicates: "+str(len(d["predicates"])))
+
+    train_valid_subjects = set()
+    train_valid_predicates = set()
+    for d in datasets:
+        if d["dataset"] == "train" or d["dataset"] == "valid":
+            for p  in d["predicates"]:
+                train_valid_predicates.add(p)
+            for p  in d["subjects"]:
+                train_valid_subjects.add(p)
+
+    print("Train+valid: Subjects: "+ str(len(train_valid_subjects)) +" Predicates: "+str(len(train_valid_predicates)))
+
+    train_test_valid_subjects = set()
+    train_test_valid_predicates = set()
+    for d in datasets:
+        for p in d["predicates"]:
+            train_test_valid_predicates.add(p)
+        for p in d["subjects"]:
+            train_test_valid_subjects.add(p)
+
+    print("Train+valid+test: Subjects: " + str(len(train_test_valid_subjects)) + " Predicates: " + str(len(train_test_valid_predicates)))
+
+generate_training_data()
 
 extract_named_entities()
