@@ -1,12 +1,12 @@
 import numpy as np
 from keras.models import Model
 from keras.layers import TimeDistributed,Conv1D,Dense,Embedding,Input,Dropout,LSTM,Bidirectional,MaxPooling1D,Flatten,concatenate
-from train.prepro import readfile,createBatches,createMatrices,iterate_minibatches,addCharInformatioin,padding
+from prepro import readfile,createBatches,createMatrices,iterate_minibatches,addCharInformatioin,padding
 from keras.utils import Progbar
 from keras.initializers import RandomUniform
 import os.path
-from inference.extract_all_words import extract_words
-from inference.candidate_retriever import generate_training_data
+from extract_all_words import extract_words
+from candidate_retriever import generate_training_data
 
 epochs = 100
 training_data_path  = "../data/ner_training_data.txt"

@@ -1,4 +1,4 @@
-from inference.candidate_retriever import normalize_string, get_stopwords, load_index, load_freebase_index
+from src.candidate_retriever import normalize_string, get_stopwords, load_freebase_index
 import json
 
 def load_old_index(file_path):

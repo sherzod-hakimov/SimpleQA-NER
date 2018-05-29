@@ -3,9 +3,9 @@ from keras.models import Model
 from keras.layers import TimeDistributed, Conv1D, Dense, Embedding, Input, Dropout, LSTM, Bidirectional, MaxPooling1D, \
     Flatten, concatenate
 
-from inference.candidate_retriever import load_index, extract_candidates, remove_accents, strip_punctuation
-from inference.extract_all_words import extract_words
-from train.prepro import createMatrices, addCharInformatioin, padding
+from src.candidate_retriever import load_index, extract_candidates, remove_accents, strip_punctuation
+from src.extract_all_words import extract_words
+from src.prepro import createMatrices, addCharInformatioin, padding
 from keras.initializers import RandomUniform
 import json
 import os.path
