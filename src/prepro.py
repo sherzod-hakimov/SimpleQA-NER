@@ -72,23 +72,6 @@ def createBatches(data):
     return batches, batch_len
 
 
-def createBatches(data):
-    l = []
-    for i in data:
-        l.append(len(i[0]))
-    l = set(l)
-    batches = []
-    batch_len = []
-    z = 0
-    for i in l:
-        for batch in data:
-            if len(batch[0]) == i:
-                batches.append(batch)
-                z += 1
-        batch_len.append(z)
-    return batches, batch_len
-
-
 def createMatrices(sentences, word2Idx, label2Idx, case2Idx, char2Idx):
     unknownIdx = word2Idx['UNKNOWN_TOKEN']
     paddingIdx = word2Idx['PADDING_TOKEN']
