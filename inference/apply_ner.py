@@ -5,11 +5,9 @@ from keras.layers import TimeDistributed, Conv1D, Dense, Embedding, Input, Dropo
 
 from inference.candidate_retriever import load_index, extract_candidates, remove_accents, strip_punctuation
 from inference.extract_all_words import extract_words
-from inference.prepro import readfile, createMatrices, addCharInformatioin, padding
-from keras.utils import Progbar
+from train.prepro import createMatrices, addCharInformatioin, padding
 from keras.initializers import RandomUniform
 import json
-from difflib import SequenceMatcher
 import os.path
 
 epochs = 100

@@ -2,7 +2,7 @@ import numpy as np
 from validation import compute_f1
 from keras.models import Model
 from keras.layers import TimeDistributed,Conv1D,Dense,Embedding,Input,Dropout,LSTM,Bidirectional,MaxPooling1D,Flatten,concatenate
-from inference.prepro import readfile,createBatches,createMatrices, addCharInformatioin,padding
+from train.prepro import readfile,createBatches,createMatrices, addCharInformatioin,padding
 from keras.initializers import RandomUniform
 import os
 
