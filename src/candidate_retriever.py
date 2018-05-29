@@ -618,7 +618,3 @@ def analyse_dataset():
             train_test_valid_subjects.add(p)
 
     print("Train+valid+test: Subjects: " + str(len(train_test_valid_subjects)) + " Predicates: " + str(len(train_test_valid_predicates)))
-
-generate_training_data()
-
-extract_named_entities()
