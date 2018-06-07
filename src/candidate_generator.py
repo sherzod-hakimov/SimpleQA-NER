@@ -598,6 +598,7 @@ def analyse_dataset():
     for d in datasets:
         print(d["dataset"]+ "Subjects: "+str(len(d["subjects"])) +" Predicates: "+str(len(d["predicates"])))
 
+
     train_valid_subjects = set()
     train_valid_predicates = set()
     for d in datasets:

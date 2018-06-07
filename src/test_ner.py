@@ -108,10 +108,14 @@ for d in dataset_names:
         content = f.readlines()
 
         correct_count = 0
+        average_string_similarity = 0
+        total_count = 0
 
         f = open("../data/" + d + "_after_ner.txt", "w")
 
         for i, line in enumerate(content):
+
+            total_count+=1
 
             json_data = json.loads(line)
             text = json_data['text']
@@ -151,69 +155,155 @@ for d in dataset_names:
                     if start_index == -1:
                         start_index = token_index
                     end_index = token_index + 1
-                    predicted_span += words[token_index] + " "
+
+                    normalized_token = remove_accents(words[token_index])
+                    normalized_token = strip_punctuation(normalized_token)
+
+                    # predicted_span += words[token_index] + " "
+                    predicted_span += normalized_token + " "
             predicted_span = predicted_span.strip()
 
 
+            ## find the maximum span
+            max_candidate_start_token = None
+            max_candidate_end_token = None
+            max_similarity = 0
+            max_candidate_span = ""
+            for c in candidates:
+                start_token = c["startToken"]
+                end_token = c["endToken"]
 
-            candidates = extract_candidates(predicted_span, mention_dict, partial_match=False)
-            ## sort
-            candidates.sort(key=lambda tup: tup[1])  # sorts in place
+                candidate_tokens = words[c["startToken"]:c["endToken"]]
+                candidate_span = ""
+                for token_index, token in enumerate(words):
+                    if token_index >=start_token and token_index < end_token:
+                        normalized_token = remove_accents(token)
+                        normalized_token = strip_punctuation(normalized_token)
+                        candidate_span += normalized_token + " "
 
-            ### Evaluate Recall@K
-            ### crop the list and compare recall@k
-            for range in recall_ranges:
-                ##no need to crop again if it's found on prev k number
-                if is_found:
-                    recall_at_k[range] = recall_at_k[range] + 1
-                    continue
+                candidate_span = candidate_span.strip()
 
-                top_k = min(range, len(candidates))
-                filtered_subjects = candidates[:top_k]
+                similarity_score = SequenceMatcher(None, predicted_span, candidate_span).ratio()
 
-                for u1, f1 in filtered_subjects:
-                    if u1 == target_subject:
-                        is_found = True
-                        break
-
-                if is_found:
-                    recall_at_k[range] = recall_at_k[range] + 1
+                if similarity_score > max_similarity:
+                    max_similarity = similarity_score
+                    max_candidate_start_token = start_token
+                    max_candidate_end_token = end_token
+                    max_candidate_span = candidate_span
 
 
+            filtered_candidates = []
+            for c in candidates:
+                start_token = c["startToken"]
+                end_token = c["endToken"]
 
-            subject_candidates = list()
+                if start_token == max_candidate_start_token and end_token == max_candidate_end_token:
+                    filtered_candidates.append(c)
 
-            is_found = False
-            for uri, freq in candidates:
-                subject_candidate = {}
-                subject_candidate["startToken"] = start_index
-                subject_candidate["endToken"] = end_index
-                subject_candidate["predicates"] = list()
-                subject_candidate["uri"] = uri
-                subject_candidate["frequency"] = freq
 
-                subject_candidates.append(subject_candidate)
-
-                if target_subject == uri:
-                    correct_count +=1
+            for candidate_subject in filtered_candidates:
+                if target_subject == candidate_subject["uri"]:
                     is_found = True
+                    break
 
-            if not is_found:
-                print("Text: " + text + " NE: " + predicted_span + "\n")
+            if is_found:
+                correct_count+=1
+                average_string_similarity += max_similarity
+            else:
+                print(text+"\n")
+                print("Predicted Span: "+predicted_span+"\n")
+                print("Max Span: " + max_candidate_span + "-> sim:"+str(max_similarity)+ "\n")
 
-            entry = {}
-            entry["text"] = text
-            entry["predicate"] = target_predicate
-            entry["subject"] = target_subject
-            entry["candidates"] = subject_candidates
+                candidate_spans = set()
 
-            f.write(json.dumps(entry) + '\n')  # python will convert \n to os.linesep
+                expected_span = ""
+
+                for c in candidates:
+                    start_token = c["startToken"]
+                    end_token = c["endToken"]
+
+
+                    candidate_tokens = words[c["startToken"]:c["endToken"]]
+                    candidate_span = ""
+                    for token_index, token in enumerate(words):
+                        if token_index >= start_token and token_index < end_token:
+                            normalized_token = remove_accents(token)
+                            normalized_token = strip_punctuation(normalized_token)
+                            candidate_span += normalized_token + " "
+
+                    candidate_span = candidate_span.strip()
+
+                    if c["uri"] == target_subject:
+                        expected_span = candidate_span
+
+                    candidate_spans.add(candidate_span)
+
+                print("Expected span: "+ expected_span+"\n")
+                print("Available spans\n")
+                for s in candidate_spans:
+                    print("\t"+s+"\n")
+
+                print("\n\n")
+
+            # candidates = extract_candidates(predicted_span, mention_dict, partial_match=False)
+            # ## sort
+            # candidates.sort(key=lambda tup: tup[1])  # sorts in place
+            #
+            # ### Evaluate Recall@K
+            # ### crop the list and compare recall@k
+            # for range in recall_ranges:
+            #     ##no need to crop again if it's found on prev k number
+            #     if is_found:
+            #         recall_at_k[range] = recall_at_k[range] + 1
+            #         continue
+            #
+            #     top_k = min(range, len(candidates))
+            #     filtered_subjects = candidates[:top_k]
+            #
+            #     for u1, f1 in filtered_subjects:
+            #         if u1 == target_subject:
+            #             is_found = True
+            #             break
+            #
+            #     if is_found:
+            #         recall_at_k[range] = recall_at_k[range] + 1
+            #
+            #
+            #
+            # subject_candidates = list()
+            #
+            # is_found = False
+            # for uri, freq in candidates:
+            #     subject_candidate = {}
+            #     subject_candidate["startToken"] = start_index
+            #     subject_candidate["endToken"] = end_index
+            #     subject_candidate["predicates"] = list()
+            #     subject_candidate["uri"] = uri
+            #     subject_candidate["frequency"] = freq
+            #
+            #     subject_candidates.append(subject_candidate)
+            #
+            #     if target_subject == uri:
+            #         correct_count +=1
+            #         is_found = True
+            #
+            # if not is_found:
+            #     print("Text: " + text + " NE: " + predicted_span + "\n")
+
+            # entry = {}
+            # entry["text"] = text
+            # entry["predicate"] = target_predicate
+            # entry["subject"] = target_subject
+            # entry["candidates"] = subject_candidates
+            #
+            # f.write(json.dumps(entry) + '\n')  # python will convert \n to os.linesep
         f.close()
 
-        print("Correct predicted span: "+ str(correct_count/float(len(content))))
-        for k in recall_ranges:
-            recall_at_k_score = recall_at_k[k] / float(len(content))
-            print("\tRecall@" + str(k) + " : " + str(recall_at_k_score))
+        print("Correct predicted span: "+ str(correct_count/float(total_count)))
+        print("Average string sim: " + str(average_string_similarity / float(total_count)))
+        # for k in recall_ranges:
+        #     recall_at_k_score = recall_at_k[k] / float(len(content))
+        #     print("\tRecall@" + str(k) + " : " + str(recall_at_k_score))
 
 # with open('data/test_all_ngrams.txt') as f:
 #     content = f.readlines()
