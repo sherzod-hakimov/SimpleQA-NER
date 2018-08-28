@@ -49,7 +49,7 @@ portend==2.2
 preshed==1.0.0
 protobuf==3.5.1
 py==1.5.3
-pycryptodome==3.6.1
+pycryptodome==3.6.6
 pydot==1.2.4
 pyparsing==2.2.0
 pytest==3.5.1
