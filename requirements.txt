@@ -35,7 +35,7 @@ more-itertools==4.1.0
 msgpack-numpy==0.4.1
 msgpack-python==0.5.6
 murmurhash==0.28.0
-nltk==3.2.5
+nltk==3.4.5
 numpy==1.14.1
 pathlib==1.0.1
 pattern3==3.0.0
