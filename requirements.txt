@@ -8,7 +8,7 @@ boto==2.48.0
 boto3==1.7.23
 botocore==1.10.23
 bz2file==0.98
-certifi==2018.4.16
+certifi==2022.12.7
 chardet==3.0.4
 cheroot==6.3.0
 CherryPy==15.0.0
